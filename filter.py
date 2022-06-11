@@ -4,14 +4,11 @@ from scipy import signal
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Call the script with two arguments, the first one being the path to the input CSV file, and the second one the output path
+# Call the script with two arguments, the first one being the
+# path to the input CSV file, and the second one the output path
 
-if(len(sys.argv) < 3):
+if len(sys.argv) < 3:
     exit(0)
-
-
-
-
 
 input = sys.argv[1]
 output = sys.argv[2]
