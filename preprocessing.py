@@ -45,12 +45,13 @@ def applyFilter(time_series):
 # Creates a static 160 timestamp window of each heartbeat
 def createStaticWindows(annotations, time_series_1, time_series_2):
     annotatedWindows = []
-    for heartbeat in annotations:
+    for i, heartbeat in enumerate(annotations[1:], start=1):
         low = int(heartbeat[0]) - 40
         high = int(heartbeat[0]) + 40
         time_series_1_window = time_series_1[low:high]
         time_series_2_window = time_series_2[low:high]
-        annotatedWindows.append([str(heartbeat[1])] + list(time_series_1_window) + list(time_series_2_window))
+        time_since_last_beat = int(heartbeat[0]) - int(annotations[i-1][0])
+        annotatedWindows.append([str(heartbeat[1])] + [str(time_since_last_beat)] + list(time_series_1_window) + list(time_series_2_window))
     return annotatedWindows
 
 
@@ -85,7 +86,11 @@ def writeOutput(balanced_dataset):
     print("testing")
     with open("preprocessed_data.csv", "w", newline="") as outfile:
         writer = csv.writer(outfile)
-        writer.writerow(['Annotation'])
+        timestamp_headers = []
+        for i in range(0, 160):
+            timestamp_headers.append("timestamp_" + str(i))
+
+        writer.writerow(['annotation', 'time_since_last_beat'] + timestamp_headers)
         for i in range(len(balanced_dataset)):
             writer.writerow(balanced_dataset[i])
 
