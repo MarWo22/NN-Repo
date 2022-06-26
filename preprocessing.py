@@ -11,7 +11,7 @@ import random
 # ----------------------------------------------------------------------------------------
 
 # Reads the timeseries from the .csv file
-def readData(dataPath):
+def read_data(dataPath):
 
     time_series_1 = []
     time_series_2 = []
@@ -26,7 +26,7 @@ def readData(dataPath):
     return time_series_1, time_series_2
 
 # Reads the annotations from the .txt file
-def readAnnotations(annotationsPath):
+def read_annotations(annotationsPath):
     with open(annotationsPath, 'r') as in_file:
         stripped = (line.strip() for line in in_file)
         lines = (re.split(' +', line)[1:3] for line in stripped if line)
@@ -35,7 +35,7 @@ def readAnnotations(annotationsPath):
     return lines[2:]
 
 # Applies a 3rd order butterworth filters with a 0.5 low cutoff and 45 high cutoff
-def applyFilter(time_series):
+def apply_filter(time_series):
     nyq = 0.5 * 360
     low = 0.4 / nyq
     high = 45 / nyq
@@ -43,15 +43,14 @@ def applyFilter(time_series):
     return signal.sosfilt(sos, time_series)
 
 # Creates a static 160 timestamp window of each heartbeat
-def createStaticWindows(annotations, time_series_1, time_series_2):
+def create_static_windows(annotations, time_series_1, time_series_2, time_since_last_beat):
     annotatedWindows = []
-    for i, heartbeat in enumerate(annotations[1:], start=1):
+    for i, heartbeat in enumerate(annotations[1:]):
         low = int(heartbeat[0]) - 40
         high = int(heartbeat[0]) + 40
-        time_series_1_window = time_series_1[low:high]
-        time_series_2_window = time_series_2[low:high]
-        time_since_last_beat = int(heartbeat[0]) - int(annotations[i-1][0])
-        annotatedWindows.append([str(heartbeat[1])] + [str(time_since_last_beat)] + list(time_series_1_window) + list(time_series_2_window))
+        time_series_1_window = normalize(time_series_1[low:high])
+        time_series_2_window = normalize(time_series_2[low:high])
+        annotatedWindows.append([str(heartbeat[1]), str(time_since_last_beat[i])] + list(time_series_1_window) + list(time_series_2_window))
     return annotatedWindows
 
 
@@ -82,8 +81,7 @@ def rebalance(annotatedWindows):
     return balanced_beats
 
 # Writes the output to a csv file
-def writeOutput(balanced_dataset):
-    print("testing")
+def write_output(balanced_dataset):
     with open("preprocessed_data.csv", "w", newline="") as outfile:
         writer = csv.writer(outfile)
         timestamp_headers = []
@@ -95,6 +93,25 @@ def writeOutput(balanced_dataset):
             writer.writerow(balanced_dataset[i])
 
 
+def normalize(list):
+
+    normalized_list = []
+    max_val = max(list)
+    min_val = min(list)
+
+    for val in list:
+        normalized_list.append((val-min_val) / (max_val-min_val))
+
+    return normalized_list
+
+def get_time_since_last_beat(annotations):
+    time_since_last_beat = []
+    for i in range(1, len(annotations)):
+        time_since_last_beat.append(int(annotations[i][0]) - int(annotations[i-1][0]))
+    return normalize(time_since_last_beat)
+
+
+
 def main(): 
     if len(sys.argv) < 3:
         print("Not enough arguments")
@@ -102,13 +119,14 @@ def main():
 
     dataPath = sys.argv[1]
     annotationsPath = sys.argv[2]
-    time_series_1, time_series_2 = readData(dataPath)
-    annotations = readAnnotations(annotationsPath)
-    filtered_time_series_1 = applyFilter(time_series_1)
-    filtered_time_series_2 = applyFilter(time_series_2)
-    annotatedWindows = createStaticWindows(annotations, filtered_time_series_1, filtered_time_series_2)
+    time_series_1, time_series_2 = read_data(dataPath)
+    annotations = read_annotations(annotationsPath)
+    filtered_time_series_1 = apply_filter(time_series_1)
+    filtered_time_series_2 = apply_filter(time_series_2)
+    time_since_last_beat = get_time_since_last_beat(annotations)
+    annotatedWindows = create_static_windows(annotations, filtered_time_series_1, filtered_time_series_2, time_since_last_beat)
     balanced_dataset = rebalance(annotatedWindows)
-    writeOutput(balanced_dataset)
+    write_output(balanced_dataset)
 
 
 if __name__ == "__main__":
