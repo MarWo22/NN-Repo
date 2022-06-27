@@ -12,7 +12,6 @@ import random
 
 # Reads the timeseries from the .csv file
 def read_data(dataPath):
-
     time_series_1 = []
     time_series_2 = []
 
@@ -25,6 +24,7 @@ def read_data(dataPath):
 
     return time_series_1, time_series_2
 
+
 # Reads the annotations from the .txt file
 def read_annotations(annotationsPath):
     with open(annotationsPath, 'r') as in_file:
@@ -34,6 +34,7 @@ def read_annotations(annotationsPath):
 
     return lines[2:]
 
+
 # Applies a 3rd order butterworth filters with a 0.5 low cutoff and 45 high cutoff
 def apply_filter(time_series):
     nyq = 0.5 * 360
@@ -41,6 +42,7 @@ def apply_filter(time_series):
     high = 45 / nyq
     sos = signal.butter(3, [low, high], analog=False, btype='band', output='sos')
     return signal.sosfilt(sos, time_series)
+
 
 # Creates a static 160 timestamp window of each heartbeat
 def create_static_windows(annotations, time_series_1, time_series_2, time_since_last_beat):
@@ -50,7 +52,8 @@ def create_static_windows(annotations, time_series_1, time_series_2, time_since_
         high = int(heartbeat[0]) + 40
         time_series_1_window = normalize(time_series_1[low:high])
         time_series_2_window = normalize(time_series_2[low:high])
-        annotatedWindows.append([str(heartbeat[1]), str(time_since_last_beat[i])] + list(time_series_1_window) + list(time_series_2_window))
+        annotatedWindows.append(
+            [str(heartbeat[1]), str(time_since_last_beat[i])] + list(time_series_1_window) + list(time_series_2_window))
     return annotatedWindows
 
 
@@ -80,9 +83,10 @@ def rebalance(annotatedWindows):
     random.shuffle(balanced_beats)
     return balanced_beats
 
+
 # Writes the output to a csv file
 def write_output(balanced_dataset):
-    with open("preprocessed_data.csv", "w", newline="") as outfile:
+    with open("processed_data.csv", "w", newline="") as outfile:
         writer = csv.writer(outfile)
         timestamp_headers = []
         for i in range(0, 160):
@@ -94,25 +98,33 @@ def write_output(balanced_dataset):
 
 
 def normalize(list):
-
     normalized_list = []
     max_val = max(list)
     min_val = min(list)
 
     for val in list:
-        normalized_list.append((val-min_val) / (max_val-min_val))
+        normalized_list.append((val - min_val) / (max_val - min_val))
 
     return normalized_list
+
+
+def one_hot_encoding(dataset):
+    encoder = ['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'F', '[', '!', ']', 'e', 'j', 'E', '/', 'f', 'x', 'Q', '|']
+    for row in range(len(dataset)):
+        for annotation in encoder:
+            if dataset[row][0] == annotation:
+                dataset[row][0] = encoder.index(annotation)
+    return dataset
+
 
 def get_time_since_last_beat(annotations):
     time_since_last_beat = []
     for i in range(1, len(annotations)):
-        time_since_last_beat.append(int(annotations[i][0]) - int(annotations[i-1][0]))
+        time_since_last_beat.append(int(annotations[i][0]) - int(annotations[i - 1][0]))
     return normalize(time_since_last_beat)
 
 
-
-def main(): 
+def main():
     if len(sys.argv) < 3:
         print("Not enough arguments")
         exit(0)
@@ -124,9 +136,11 @@ def main():
     filtered_time_series_1 = apply_filter(time_series_1)
     filtered_time_series_2 = apply_filter(time_series_2)
     time_since_last_beat = get_time_since_last_beat(annotations)
-    annotatedWindows = create_static_windows(annotations, filtered_time_series_1, filtered_time_series_2, time_since_last_beat)
+    annotatedWindows = create_static_windows(annotations, filtered_time_series_1, filtered_time_series_2,
+                                             time_since_last_beat)
     balanced_dataset = rebalance(annotatedWindows)
-    write_output(balanced_dataset)
+    encoded_dataset = one_hot_encoding(balanced_dataset)
+    write_output(encoded_dataset)
 
 
 if __name__ == "__main__":
