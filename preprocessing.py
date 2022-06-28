@@ -57,10 +57,11 @@ def create_static_windows(annotations, time_series_1, time_series_2, time_since_
     for i, heartbeat in enumerate(annotations[1:]):
         low = int(heartbeat[0]) - 40
         high = int(heartbeat[0]) + 40
-        time_series_1_window = normalize(time_series_1[low:high])
-        time_series_2_window = normalize(time_series_2[low:high])
-        annotatedWindows.append(
-            [str(heartbeat[1]), str(time_since_last_beat[i])] + list(time_series_1_window) + list(time_series_2_window))
+        if low >= 0 and high < len(time_series_1): # makes sure the window doesnt go out of bounds
+            time_series_1_window = normalize(time_series_1[low:high])
+            time_series_2_window = normalize(time_series_2[low:high])
+            annotatedWindows.append(
+                [str(heartbeat[1]), str(time_since_last_beat[i])] + list(time_series_1_window) + list(time_series_2_window))
     print("Created fixed-length windows")
     return annotatedWindows
 
