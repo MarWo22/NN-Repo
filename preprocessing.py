@@ -86,7 +86,7 @@ def rebalance(annotatedWindows):
 
 # Writes the output to a csv file
 def write_output(balanced_dataset):
-    with open("processed_data103.csv", "w", newline="") as outfile:
+    with open("processed_data101.csv", "w", newline="") as outfile:
         writer = csv.writer(outfile)
         timestamp_headers = []
         for i in range(0, 160):
