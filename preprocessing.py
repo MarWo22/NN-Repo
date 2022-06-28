@@ -3,6 +3,7 @@ import re
 from scipy import signal
 import csv
 import random
+import classifier
 
 
 # ------------------------------------------------------------------------------------------------------------------#
@@ -105,6 +106,7 @@ def write_output(dataset, path):
             writer.writerow(dataset[i])
     print("Wrote data to output file")
 
+
 # Normalizes a given list
 def normalize(list):
     normalized_list = []
@@ -116,7 +118,9 @@ def normalize(list):
 
     return normalized_list
 
-# One hot encodes the annotations for different heartbeats. Sometimes there are annotations without meaning, those are removed
+
+# One hot encodes the annotations for different heartbeats. Sometimes there are annotations without meaning,
+# those are removed
 def one_hot_encoding(dataset):
     encoded_dataset = []
     encoder = ['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'F', '[', '!', ']', 'e', 'j', 'E', '/', 'f', 'x', 'Q', '|']
@@ -128,6 +132,7 @@ def one_hot_encoding(dataset):
                 break
 
     return encoded_dataset
+
 
 # Get the number of timesteps that have passed since the last heartbeat
 def get_time_since_last_beat(annotations):
@@ -154,6 +159,7 @@ def main():
     encoded_dataset = one_hot_encoding(annotatedWindows)
     balanced_dataset = rebalance(encoded_dataset)
     write_output(balanced_dataset, dataPath)
+    classifier.classify("processed_data_" + dataPath)
 
 
 if __name__ == "__main__":
