@@ -39,6 +39,14 @@ def test_model(name):
     print("%s: %.2f%%" % (best_model.metrics_names[2], score[2] * 100))
 
 
+# can be used to test the best model with locked dataset
+def test_model_lockbox(x_testf, y_testf):
+    best_model = tf.keras.models.load_model('my_best_model.h5')
+
+    score = best_model.evaluate(x_testf, y_testf, verbose=1)
+    print("%s: %.2f%%" % (best_model.metrics_names[2], score[2] * 100))
+
+
 # trains and validates the network on the given dataset
 def classify(name):
     # load the dataset
@@ -47,8 +55,19 @@ def classify(name):
     # shuffle the dataset
     data.sample(frac=1).reset_index()
 
-    # split dataframe into training and testing sets with an 70-30 split
-    split_index = int(0.3 * len(data))
+    # save 20% of the data in lockbox
+    # lockbox_split_index = int(0.95 * len(data))
+    #
+    # lockbox_x = data.iloc[lockbox_split_index:len(data):1, :]
+    # lockbox_y = lockbox_x
+    # lockbox_xf = lockbox_x.drop(columns=['annotation'])
+    # lockbox_y = lockbox_y.loc[:, ['annotation']]
+    # lockbox_yf = tf.keras.utils.to_categorical(lockbox_y, 20)
+    #
+    # data = data.iloc[0:lockbox_split_index:1, :]
+
+    # split remaining dataframe into training and testing sets with an 70-30 split
+    split_index = int(0.2 * len(data))
 
     x_train = data.iloc[split_index:len(data):1, :]
     y_train = x_train
@@ -112,9 +131,10 @@ def classify(name):
     )
 
     plot_history(history)
-    # uncomment the line below to test the current trained network with a different dataset.
-    # not very useful since each patient's arrythmia pattern is unique, hence learning does
-    # not transfer.
-    # test_model('processed_data_100.csv')
+
+    # test_model_lockbox(lockbox_xf, lockbox_yf)
+    # test_name = 'insert name of dataset to test with model here'
+    # test_model(test_name)
+
 
 # (!#1)

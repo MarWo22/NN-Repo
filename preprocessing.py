@@ -77,7 +77,7 @@ def rebalance(annotatedWindows):
             normal_beats.append(window)
         else:
             pathological_beats.append(window)
-    if len(pathological_beats) is not 0 and len(normal_beats) is not 0:
+    if len(pathological_beats) != 0 and len(normal_beats) != 0:
         if len(normal_beats) > len(pathological_beats) and len(normal_beats):
             balanced_pathological_beats = pathological_beats.copy()
             for _ in range(len(normal_beats) - len(pathological_beats)):
