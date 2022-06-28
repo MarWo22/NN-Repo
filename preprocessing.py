@@ -77,17 +77,19 @@ def rebalance(annotatedWindows):
             normal_beats.append(window)
         else:
             pathological_beats.append(window)
-
-    if len(normal_beats) > len(pathological_beats):
-        balanced_pathological_beats = pathological_beats.copy()
-        for _ in range(len(normal_beats) - len(pathological_beats)):
-            balanced_pathological_beats.append(random.choice(pathological_beats))
-        balanced_beats = normal_beats + balanced_pathological_beats
+    if len(pathological_beats) is not 0 and len(normal_beats) is not 0:
+        if len(normal_beats) > len(pathological_beats) and len(normal_beats):
+            balanced_pathological_beats = pathological_beats.copy()
+            for _ in range(len(normal_beats) - len(pathological_beats)):
+                balanced_pathological_beats.append(random.choice(pathological_beats))
+            balanced_beats = normal_beats + balanced_pathological_beats
+        else:
+            balanced_normal_beats = normal_beats.copy()
+            for _ in range(len(pathological_beats) - len(normal_beats)):
+                balanced_normal_beats.append(random.choice(normal_beats))
+            balanced_beats = pathological_beats + balanced_normal_beats
     else:
-        balanced_normal_beats = normal_beats.copy()
-        for _ in range(len(pathological_beats) - len(normal_beats)):
-            balanced_normal_beats.append(random.choice(normal_beats))
-        balanced_beats = pathological_beats + balanced_normal_beats
+        balanced_beats = normal_beats + pathological_beats
 
     random.shuffle(balanced_beats)
     print("Rebalanced data")
