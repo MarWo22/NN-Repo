@@ -47,9 +47,6 @@ def classify(name):
     # shuffle the dataset
     data.sample(frac=1).reset_index()
 
-    last_col = data.loc[:, ["timestamp_159"]]
-    print(last_col[0:50])
-
     # split dataframe into training and testing sets with an 70-30 split
     split_index = int(0.3 * len(data))
 
@@ -80,10 +77,7 @@ def classify(name):
                                     kernel_regularizer=tf.keras.regularizers.l2(1e-4)))
     model.add(tf.keras.layers.Dense(64, activation='relu',
                                     kernel_regularizer=tf.keras.regularizers.l2(1e-4)))
-    model.add(tf.keras.layers.Dropout(0.25))
-    model.add(tf.keras.layers.Dense(64, activation='relu',
-                                    kernel_regularizer=tf.keras.regularizers.l2(1e-4)))
-    model.add(tf.keras.layers.Dropout(0.25))
+    model.add(tf.keras.layers.Dropout(0.05))
     model.add(tf.keras.layers.Dense(20, activation='softmax'))
 
     # model compilation
@@ -118,5 +112,9 @@ def classify(name):
     )
 
     plot_history(history)
+    # uncomment the line below to test the current trained network with a different dataset.
+    # not very useful since each patient's arrythmia pattern is unique, hence learning does
+    # not transfer.
+    # test_model('processed_data_100.csv')
 
 # (!#1)
