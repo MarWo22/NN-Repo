@@ -15,7 +15,7 @@ from scipy import signal
 #
 
 def read_data(dataPath):
-    data = pd.read_csv(dataPath, usecols=["'MLII'", "'V5'"])
+    data = pd.read_csv(dataPath, usecols=[1,2])
     return data
 
 
@@ -32,9 +32,8 @@ def apply_filter(dataframe):
     low = 0.4 / nyq
     high = 45 / nyq
     sos = signal.butter(3, [low, high], analog=False, btype='band', output='sos')
-
-    dataframe["'MLII'"] = signal.sosfilt(sos, dataframe["'MLII'"])
-    dataframe["'V5'"] = signal.sosfilt(sos, dataframe["'V5'"])
+    dataframe[dataframe.columns[0]] = signal.sosfilt(sos, dataframe[dataframe.columns[0]])
+    dataframe[dataframe.columns[1]] = signal.sosfilt(sos, dataframe[dataframe.columns[1]])
     return dataframe
 
 
@@ -47,7 +46,7 @@ def create_static_windows(annotations_dataframe, timeseries_dataframe):
         low_range = current_annotations[0]-40
         high_range = current_annotations[0]+40
         if low_range >= 0 and high_range < len(timeseries_dataframe): # makes sure the window doesnt go out of bounds
-            timeseries_window = list(timeseries_dataframe["'MLII'"][low_range:high_range]) + list(timeseries_dataframe["'V5'"][low_range:high_range])
+            timeseries_window = list(timeseries_dataframe[timeseries_dataframe.columns[0]][low_range:high_range]) + list(timeseries_dataframe[timeseries_dataframe.columns[1]][low_range:high_range])
             data.append([current_annotations[1], current_annotations[2]] + timeseries_window)
     
     headers = ['annotation', 'time_since_last_beat'] + ["timestamp_" + str(i) for i in range(0, 160)]
