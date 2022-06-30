@@ -5,6 +5,7 @@ import numpy as np
 import sys
 from scipy import signal
 
+
 # ------------------------------------------------------------------------------------------------------------------#
 #   Call the script as 'neural_network.py "path_to_timestamp.csv" "path_to_annotations.txt"'                        #
 # ------------------------------------------------------------------------------------------------------------------#
@@ -15,14 +16,14 @@ from scipy import signal
 #
 
 def read_data(dataPath):
-    data = pd.read_csv(dataPath, usecols=[1,2])
+    data = pd.read_csv(dataPath, usecols=[1, 2])
     return data
 
 
 # Reads the annotations from the .txt file
 def read_annotations(annotationsPath):
     data = pd.read_csv(annotationsPath, delim_whitespace=True, usecols=['Sample', '#'])
-    data = data.drop(0).reset_index(drop=True) #drop first row
+    data = data.drop(0).reset_index(drop=True)  # drop first row
     return data
 
 
@@ -39,52 +40,56 @@ def apply_filter(dataframe):
 
 # Creates a static 160 timestamp window of each heartbeat
 def create_static_windows(annotations_dataframe, timeseries_dataframe):
-
     data = []
     for i in range(1, len(annotations_dataframe.index)):
         current_annotations = annotations_dataframe.values[i]
-        low_range = current_annotations[0]-40
-        high_range = current_annotations[0]+40
-        if low_range >= 0 and high_range < len(timeseries_dataframe): # makes sure the window doesnt go out of bounds
-            timeseries_window = list(timeseries_dataframe[timeseries_dataframe.columns[0]][low_range:high_range]) + list(timeseries_dataframe[timeseries_dataframe.columns[1]][low_range:high_range])
+        low_range = current_annotations[0] - 40
+        high_range = current_annotations[0] + 40
+        if low_range >= 0 and high_range < len(timeseries_dataframe):  # makes sure the window doesnt go out of bounds
+            timeseries_window = list(
+                timeseries_dataframe[timeseries_dataframe.columns[0]][low_range:high_range]) + list(
+                timeseries_dataframe[timeseries_dataframe.columns[1]][low_range:high_range])
             data.append([current_annotations[1], current_annotations[2]] + timeseries_window)
-    
+
     headers = ['annotation', 'time_since_last_beat'] + ["timestamp_" + str(i) for i in range(0, 160)]
     dataframe = pd.DataFrame(np.asarray(data), columns=headers)
     for column in dataframe.columns[1:]:
-        dataframe = dataframe.astype({column:float})
+        dataframe = dataframe.astype({column: float})
 
     return dataframe
 
 
 # Rebalances the data to make sure that the frequency of normal and pathological heartbeats are the same
 def rebalance(df):
-
     normal_beats = df[df['annotation'] == 0]
     pathological_beats = df[df['annotation'] != 0]
 
-    if len(normal_beats) > 0 and len(pathological_beats) > 0 and len(normal_beats) < len(pathological_beats):
+    if 0 < len(normal_beats) < len(pathological_beats) and len(pathological_beats) > 0:
         new_sample = normal_beats.sample(len(pathological_beats), replace=True)
         df = pd.concat([new_sample, pathological_beats], axis=0)
-    elif len(normal_beats) > 0 and len(pathological_beats) > 0 and len(normal_beats) > len(pathological_beats):
+    elif len(normal_beats) > 0 and 0 < len(pathological_beats) < len(normal_beats):
         new_sample = pathological_beats.sample(len(normal_beats), replace=True)
         df = pd.concat([new_sample, normal_beats], axis=0)
-    return df.sample(frac=1).reset_index(drop=True) #shuffle
+    return df.sample(frac=1).reset_index(drop=True)  # shuffle
+
 
 # Normalizes a dataset
 def normalize_dataframe(df):
-    timeSinceLastBeat = df.iloc[:,0]
+    timeSinceLastBeat = df.iloc[:, 0]
     timeseries = df.iloc[:, 1:]
-    timeseries = timeseries.apply(lambda x: (x-x.min())/ (x.max()-x.min()), axis=0)
+    timeseries = timeseries.apply(lambda x: (x - x.min()) / (x.max() - x.min()), axis=0)
     timeseries.insert(0, 'time_since_last_beat', timeSinceLastBeat)
     return timeseries
 
 
-
-# Replaces the characters by digits to prepare for one-hot-encoding, and removes any rows that contain characters that are not valid annotations
+# Replaces the characters by digits to prepare for one-hot-encoding, and removes any rows that contain characters
+# that are not valid annotations
 def replace_annotations(dataframe):
-    dataframe = dataframe[dataframe.annotation.isin(['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'F', '[', '!', ']', 'e', 'j', 'E', '/', 'f', 'x', 'Q', '|'])]
-    dataframe['annotation'] = dataframe['annotation'].replace({'N':0, 'L':1, 'R':2, 'A':3, 'a':4, 'J':5, 'S':6, 'V':7, 'F':8, '[':9, '!':10, ']':11, 'e':12, 'j':13, 'E':14, '/':15, 'f':16, 'x':17, 'Q':18, '|':19})
+    dataframe = dataframe[dataframe.annotation.isin(
+        ['N', 'L', 'R', 'A', 'a', 'J', 'S', 'V', 'F', '[', '!', ']', 'e', 'j', 'E', '/', 'f', 'x', 'Q', '|'])]
+    dataframe['annotation'] = dataframe['annotation'].replace(
+        {'N': 0, 'L': 1, 'R': 2, 'A': 3, 'a': 4, 'J': 5, 'S': 6, 'V': 7, 'F': 8, '[': 9, '!': 10, ']': 11, 'e': 12,
+         'j': 13, 'E': 14, '/': 15, 'f': 16, 'x': 17, 'Q': 18, '|': 19})
     return dataframe
 
 
@@ -93,30 +98,24 @@ def get_time_since_last_beat(annotations_dataframe):
     time_since_last_beat = []
     for i in range(1, len(annotations_dataframe.index)):
         time_since_last_beat.append(annotations_dataframe.values[i][0] - annotations_dataframe.values[i - 1][0])
+    # The first heartbeat needs to be dropped since it has no previous beat
     annotations_dataframe = annotations_dataframe.drop(0).reset_index(drop=True)
-    annotations_dataframe["timeSinceLastBeat"] = time_since_last_beat # The first heartbeat needs to be dropped since it has no previous beat
+    annotations_dataframe["timeSinceLastBeat"] = time_since_last_beat
     return annotations_dataframe
 
 
 def preprocess(timeseries_path, annotations_path):
-
     timestamp_dataframe = read_data(timeseries_path)
     annotations_dataframe = read_annotations(annotations_path)
     timestamp_dataframe = apply_filter(timestamp_dataframe)
     annotations_dataframe = get_time_since_last_beat(annotations_dataframe)
     dataframe = create_static_windows(annotations_dataframe, timestamp_dataframe)
     dataframe = replace_annotations(dataframe)
-    annotations = dataframe.iloc[:,0] # remove the annotations column during normalization
-    dataframe = normalize_dataframe(dataframe.iloc[:,1:])
-    dataframe.insert(0, 'annotation', annotations) # adding it back after normalization is finished
+    annotations = dataframe.iloc[:, 0]  # remove the annotations column during normalization
+    dataframe = normalize_dataframe(dataframe.iloc[:, 1:])
+    dataframe.insert(0, 'annotation', annotations)  # adding it back after normalization is finished
     balanced_dataframe = rebalance(dataframe)
     return balanced_dataframe
-
-
-
-
-
-
 
 
 #
@@ -167,18 +166,18 @@ def test_model_lockbox(x_testf, y_testf):
 
 
 # trains and validates the network on the given dataset
-def model(data):
-
+def classify(data):
+    # Uncomment lines below to split the data further and store 5% of the data in a lockbox
     # save 20% of the data in lockbox
-   # lockbox_split_index = int(0.95 * len(data))
-#
-    #lockbox_x = data.iloc[lockbox_split_index:len(data):1, :]
-    #lockbox_y = lockbox_x
-   # lockbox_xf = lockbox_x.drop(columns=['annotation'])
-   # lockbox_y = lockbox_y.loc[:, ['annotation']]
-   # lockbox_yf = tf.keras.utils.to_categorical(lockbox_y, 20)
+    # lockbox_split_index = int(0.95 * len(data))
 
-   # data = data.iloc[0:lockbox_split_index:1, :]
+    # lockbox_x = data.iloc[lockbox_split_index:len(data):1, :]
+    # lockbox_y = lockbox_x
+    # lockbox_xf = lockbox_x.drop(columns=['annotation'])
+    # lockbox_y = lockbox_y.loc[:, ['annotation']]
+    # lockbox_yf = tf.keras.utils.to_categorical(lockbox_y, 20)
+
+    # data = data.iloc[0:lockbox_split_index:1, :]
 
     # split remaining dataframe into training and testing sets with an 70-30 split
     split_index = int(0.2 * len(data))
@@ -197,7 +196,6 @@ def model(data):
     mu, sigma = 0, 0.05
     noise = np.random.normal(mu, sigma, x_trainf.shape)
     x_trainf += noise
-    # normalizing again after adding the noise
 
     # convert labels to categorical data
     y_trainf = tf.keras.utils.to_categorical(y_train, 20)
@@ -207,12 +205,12 @@ def model(data):
     model = tf.keras.Sequential()
 
     # define model architecture
-    model.add(tf.keras.layers.Dense(32, activation='relu', input_shape=(x_trainf.shape[1],),
+    model.add(tf.keras.layers.Dense(36, activation='relu', input_shape=(x_trainf.shape[1],),
                                     kernel_regularizer=tf.keras.regularizers.l2(1e-4)))
     model.add(tf.keras.layers.Dense(64, activation='relu',
                                     kernel_regularizer=tf.keras.regularizers.l2(1e-4)))
     model.add(tf.keras.layers.Dropout(0.05))
-    
+
     model.add(tf.keras.layers.Dense(20, activation='softmax'))
 
     # model compilation
@@ -248,13 +246,11 @@ def model(data):
 
     plot_history(history)
 
-    #test_model_lockbox(lockbox_xf, lockbox_yf)
-    #test_name = 'insert name of dataset to test with model here'
-    #test_model(test_name)
-
-
-# (!#1)
-
+    # Uncomment the line below to test the model with the locked data
+    # test_model_lockbox(lockbox_xf, lockbox_yf)
+    # Uncomment the lines below to test the model with a different dataset
+    # test_name = 'insert name of dataset to test with model here'
+    # test_model(test_name)
 
 
 if __name__ == "__main__":
@@ -262,4 +258,4 @@ if __name__ == "__main__":
         print("Invalid arguments")
         exit(0)
     preprocessed_data = preprocess(sys.argv[1], sys.argv[2])
-    model(preprocessed_data)
+    classify(preprocessed_data)
