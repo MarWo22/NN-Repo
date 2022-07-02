@@ -183,21 +183,21 @@ def build_model(hp):
     hp_units2 = hp.Int('units2', min_value=32, max_value=512, step=32)
     hp_reg_lr1 = hp.Choice('reg_learning_rate1', [1e-2, 1e-3, 1e-4])
     hp_reg_lr2 = hp.Choice('reg_learning_rate2', [1e-2, 1e-3, 1e-4])
-    hp_opt_lr = hp.Choice('op_learning_rate', [1e-2, 1e-3, 1e-4])
     hp_drop_rate = hp.Choice('drop_rate', [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5])
 
     # define model architecture
     model.add(tf.keras.layers.Dense(units=hp_units1, activation='relu', input_shape=(161,),
                                     kernel_regularizer=tf.keras.regularizers.l2(hp_reg_lr1)))
-    model.add(tf.keras.layers.Dense(hp_units2, activation='relu',
-                                    kernel_regularizer=tf.keras.regularizers.l2(hp_reg_lr2)))
 
     model.add(tf.keras.layers.Dropout(hp_drop_rate))
+
+    model.add(tf.keras.layers.Dense(hp_units2, activation='relu',
+                                    kernel_regularizer=tf.keras.regularizers.l2(hp_reg_lr2)))
 
     model.add(tf.keras.layers.Dense(20, activation='softmax'))
 
     # initialize the optimizer
-    optimizer = tf.keras.optimizers.Adam(learning_rate=hp_opt_lr)
+    optimizer = tf.keras.optimizers.Adam(0.001)
 
     # model compilation
     model.compile(
