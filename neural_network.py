@@ -1,5 +1,6 @@
 import pandas as pd
 import tensorflow as tf
+import keras_tuner as kt
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
@@ -145,81 +146,106 @@ def plot_history(history):
     plt.show()
 
 
-# can be used to test the best model with other datasets
-def test_model(name):
-    best_model = tf.keras.models.load_model('my_best_model.h5')
-    test_dataset = pd.read_csv(name)
-    x_testf = test_dataset.drop(columns=['annotation'])
-    y_test = test_dataset.loc[:, ['annotation']]
-    y_testf = tf.keras.utils.to_categorical(y_test, 20)
-
-    score = best_model.evaluate(x_testf, y_testf, verbose=1)
-    print("%s: %.2f%%" % (best_model.metrics_names[2], score[2] * 100))
-
-
-# can be used to test the best model with locked dataset
-def test_model_lockbox(x_testf, y_testf):
-    best_model = tf.keras.models.load_model('my_best_model.h5')
-
-    score = best_model.evaluate(x_testf, y_testf, verbose=1)
-    print("%s: %.2f%%" % (best_model.metrics_names[2], score[2] * 100))
-
-
-# trains and validates the network on the given dataset
-def classify(data):
-    # Uncomment lines below to split the data further and store 5% of the data in a lockbox
-    # save 20% of the data in lockbox
-    # lockbox_split_index = int(0.95 * len(data))
-
-    # lockbox_x = data.iloc[lockbox_split_index:len(data):1, :]
-    # lockbox_y = lockbox_x
-    # lockbox_xf = lockbox_x.drop(columns=['annotation'])
-    # lockbox_y = lockbox_y.loc[:, ['annotation']]
-    # lockbox_yf = tf.keras.utils.to_categorical(lockbox_y, 20)
-
-    # data = data.iloc[0:lockbox_split_index:1, :]
-
-    # split remaining dataframe into training and testing sets with an 70-30 split
+# splits the processed data into train and validation sets and adds noise
+def split_data(data):
+    # split remaining dataframe into training and testing sets with an 80-20 split
     split_index = int(0.2 * len(data))
 
     x_train = data.iloc[split_index:len(data):1, :]
     y_train = x_train
-    x_trainf = x_train.drop(columns=['annotation'])
+    x_trainfinal = x_train.drop(columns=['annotation'])
     y_train = y_train.loc[:, ['annotation']]
 
     x_validation = data.iloc[0:split_index:1, :]
     y_validation = x_validation
-    x_validationf = x_validation.drop(columns=['annotation'])
+    x_validationfinal = x_validation.drop(columns=['annotation'])
     y_validation = y_validation.loc[:, ['annotation']]
 
     # sdding noise to the training input with a standard deviation of 0.05
     mu, sigma = 0, 0.05
-    noise = np.random.normal(mu, sigma, x_trainf.shape)
-    x_trainf += noise
+    noise = np.random.normal(mu, sigma, x_trainfinal.shape)
+    x_trainfinal += noise
 
     # convert labels to categorical data
-    y_trainf = tf.keras.utils.to_categorical(y_train, 20)
-    y_validationf = tf.keras.utils.to_categorical(y_validation, 20)
+    y_trainfinal = tf.keras.utils.to_categorical(y_train, 20)
+    y_validationfinal = tf.keras.utils.to_categorical(y_validation, 20)
 
+    return x_trainfinal, y_trainfinal, x_validationfinal, y_validationfinal
+
+
+# builds the model with given hyperparameters
+def build_model(hp):
     # initialize model
     model = tf.keras.Sequential()
 
+    # initialize hyperparameter tuning
+    hp_units1 = hp.Int('units1', min_value=32, max_value=512, step=32)
+    hp_units2 = hp.Int('units2', min_value=32, max_value=512, step=32)
+    hp_reg_lr1 = hp.Choice('reg_learning_rate1', [1e-2, 1e-3, 1e-4])
+    hp_reg_lr2 = hp.Choice('reg_learning_rate2', [1e-2, 1e-3, 1e-4])
+    hp_opt_lr = hp.Choice('op_learning_rate', [1e-2, 1e-3, 1e-4])
+    hp_drop_rate = hp.Choice('drop_rate', [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5])
+
     # define model architecture
-    model.add(tf.keras.layers.Dense(36, activation='relu', input_shape=(x_trainf.shape[1],),
-                                    kernel_regularizer=tf.keras.regularizers.l2(1e-4)))
-    model.add(tf.keras.layers.Dense(64, activation='relu',
-                                    kernel_regularizer=tf.keras.regularizers.l2(1e-4)))
-    model.add(tf.keras.layers.Dropout(0.05))
+    model.add(tf.keras.layers.Dense(units=hp_units1, activation='relu', input_shape=(161,),
+                                    kernel_regularizer=tf.keras.regularizers.l2(hp_reg_lr1)))
+    model.add(tf.keras.layers.Dense(hp_units2, activation='relu',
+                                    kernel_regularizer=tf.keras.regularizers.l2(hp_reg_lr2)))
+
+    model.add(tf.keras.layers.Dropout(hp_drop_rate))
 
     model.add(tf.keras.layers.Dense(20, activation='softmax'))
 
+    # initialize the optimizer
+    optimizer = tf.keras.optimizers.Adam(learning_rate=hp_opt_lr)
+
     # model compilation
     model.compile(
-        optimizer='adam',
+        optimizer=optimizer,
         loss='categorical_crossentropy',
         metrics=['mse', 'accuracy']
     )
 
+    return model
+
+
+# tune the hyperparameters to get the best model
+def tune_model(x_train, y_train, x_validation, y_validation):
+    tuner = kt.Hyperband(build_model,
+                         objective='val_accuracy',
+                         max_epochs=200,
+                         factor=3,
+                         directory='my_dir',
+                         project_name='NN-Repo')
+
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='mse', patience=20)
+
+    tuner.search(x_train, y_train,
+                 epochs=200,
+                 validation_data=(x_validation, y_validation),
+                 callbacks=[early_stopping_callback],
+                 verbose=0)
+
+    best_params = tuner.get_best_hyperparameters(num_trials=1)[0]
+
+    model = tuner.hypermodel.build(best_params)
+
+    print(f"""
+    Neurons in first layer = {best_params.get('units1')}.\n
+    Neurons in second layer = {best_params.get('units2')}.\n
+    First reg lr = {best_params.get('reg_learning_rate1')}.\n
+    Second reg lr = {best_params.get('reg_learning_rate2')}.\n
+    Optimizer lr = {best_params.get('op_learning_rate')}.\n
+    Dropout rate = {best_params.get('drop_rate')}.
+    """)
+
+    model.summary()
+
+    return model
+
+
+# train the dataset on the best model
+def train_model(model, x_trainfbest, y_trainfbest, x_validationfbest, y_validationfbest):
     # initialize model callback to save best model
     checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath='my_best_model.h5',
@@ -228,29 +254,22 @@ def classify(data):
         mode='max')
 
     # initialize early stopping
-    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='mse',
-                                                               patience=20)
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='mse', patience=20)
 
     # initialize logging metrics with tensorboard callback
     tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir="./logs")
 
     # train the model
     history = model.fit(
-        x_trainf, y_trainf,
+        x_trainfbest, y_trainfbest,
         batch_size=128,
         epochs=200,
-        validation_data=(x_validationf, y_validationf),
+        validation_data=(x_validationfbest, y_validationfbest),
         callbacks=[checkpoint_callback, early_stopping_callback,
                    tensorboard_callback],
     )
 
     plot_history(history)
-
-    # Uncomment the line below to test the model with the locked data
-    # test_model_lockbox(lockbox_xf, lockbox_yf)
-    # Uncomment the lines below to test the model with a different dataset
-    # test_name = 'insert name of dataset to test with model here'
-    # test_model(test_name)
 
 
 if __name__ == "__main__":
@@ -258,4 +277,6 @@ if __name__ == "__main__":
         print("Invalid arguments")
         exit(0)
     preprocessed_data = preprocess(sys.argv[1], sys.argv[2])
-    classify(preprocessed_data)
+    x_trainf, y_trainf, x_validationf, y_validationf = split_data(preprocessed_data)
+    best_model = tune_model(x_trainf, y_trainf, x_validationf, y_validationf)
+    train_model(best_model, x_trainf, y_trainf, x_validationf, y_validationf)
