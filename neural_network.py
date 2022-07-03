@@ -197,7 +197,7 @@ def build_model(hp):
 
     model.add(tf.keras.layers.Dense(20, activation='softmax'))
 
-    # initialize the optimizer
+    # initialize the adam optimizer
     optimizer = tf.keras.optimizers.Adam(hp_opt_lr)
 
     # model compilation
