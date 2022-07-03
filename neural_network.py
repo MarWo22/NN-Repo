@@ -1,3 +1,4 @@
+from importlib.resources import path
 import pandas as pd
 import tensorflow as tf
 import keras_tuner as kt
@@ -143,6 +144,8 @@ def plot_history(history):
     axes[1].legend(loc='upper right')
     axes[1].set_title('Error history')
 
+    figure.tight_layout(pad=1.5)
+
     plt.show()
 
 
@@ -165,6 +168,8 @@ def split_data(data):
     mu, sigma = 0, 0.05
     noise = np.random.normal(mu, sigma, x_trainfinal.shape)
     x_trainfinal += noise
+    x_trainfinal = normalize_dataframe(x_trainfinal)
+
 
     # convert labels to categorical data
     y_trainfinal = tf.keras.utils.to_categorical(y_train, 20)
@@ -183,7 +188,7 @@ def build_model(hp):
     hp_units2 = hp.Int('units2', min_value=32, max_value=512, step=32)
     hp_reg_lr1 = hp.Choice('reg_learning_rate1', [1e-2, 1e-3, 1e-4])
     hp_reg_lr2 = hp.Choice('reg_learning_rate2', [1e-2, 1e-3, 1e-4])
-    hp_opt_lr = hp.Choice('opt_learning_rate', [1e-3, 1e-4, 1e-5])
+    hp_opt_lr = hp.Choice('opt_learning_rate', [1e-4, 1e-5])
     hp_drop_rate = hp.Choice('drop_rate', [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5])
 
     # define model architecture
@@ -198,7 +203,7 @@ def build_model(hp):
     model.add(tf.keras.layers.Dense(20, activation='softmax'))
 
     # initialize the adam optimizer
-    optimizer = tf.keras.optimizers.Adam(hp_opt_lr)
+    optimizer = tf.keras.optimizers.Adam(1e-4)
 
     # model compilation
     model.compile(
@@ -236,7 +241,7 @@ def tune_model(x_train, y_train, x_validation, y_validation):
     Neurons in second layer = {best_params.get('units2')}.\n
     First reg lr = {best_params.get('reg_learning_rate1')}.\n
     Second reg lr = {best_params.get('reg_learning_rate2')}.\n
-    Optimizer lr = {best_params.get('op_learning_rate')}.\n
+    Optimizer lr = {best_params.get('opt_learning_rate')}.\n
     Dropout rate = {best_params.get('drop_rate')}.
     """)
 
