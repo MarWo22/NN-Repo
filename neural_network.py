@@ -1,4 +1,3 @@
-from importlib.resources import path
 import pandas as pd
 import tensorflow as tf
 import keras_tuner as kt
@@ -17,6 +16,7 @@ from scipy import signal
 # This part of the script will handle all the data preprocessing
 #
 
+# Reads the data from a given path
 def read_data(dataPath):
     data = pd.read_csv(dataPath, usecols=[1, 2])
     return data
@@ -75,7 +75,7 @@ def rebalance(df):
     return df.sample(frac=1).reset_index(drop=True)  # shuffle
 
 
-# Normalizes a dataset
+# Normalizes a dataset using min-max normalization
 def normalize_dataframe(df):
     timeSinceLastBeat = df.iloc[:, 0]
     timeseries = df.iloc[:, 1:]
@@ -106,6 +106,7 @@ def get_time_since_last_beat(annotations_dataframe):
     return annotations_dataframe
 
 
+# Processes the data the creates a balanced dataset
 def preprocess(timeseries_path, annotations_path):
     timestamp_dataframe = read_data(timeseries_path)
     annotations_dataframe = read_annotations(annotations_path)
@@ -113,7 +114,7 @@ def preprocess(timeseries_path, annotations_path):
     annotations_dataframe = get_time_since_last_beat(annotations_dataframe)
     dataframe = create_static_windows(annotations_dataframe, timestamp_dataframe)
     dataframe = replace_annotations(dataframe)
-    annotations = dataframe.iloc[:, 0]  # remove the annotations column during normalization
+    annotations = dataframe.iloc[:, 0]  # remove the annotation column during normalization
     dataframe = normalize_dataframe(dataframe.iloc[:, 1:])
     dataframe.insert(0, 'annotation', annotations)  # adding it back after normalization is finished
     balanced_dataframe = rebalance(dataframe)
@@ -124,11 +125,11 @@ def preprocess(timeseries_path, annotations_path):
 # This part of the script will handle the actual modeling
 #
 
-# plots the accuracy and loss history for the network
+# Plots the accuracy and loss history for the network
 def plot_history(history):
     figure, axes = plt.subplots(2)
 
-    # plot training and testing accuracy
+    # plot training and validation accuracy
     axes[0].plot(history.history['accuracy'], label="train accuracy")
     axes[0].plot(history.history['val_accuracy'], label="test accuracy")
     axes[0].set_xlabel('Epoch')
@@ -136,7 +137,7 @@ def plot_history(history):
     axes[0].legend(loc='lower right')
     axes[0].set_title('Accuracy history')
 
-    # plot training and testing loss
+    # plot training and validation loss
     axes[1].plot(history.history['loss'], label="train error")
     axes[1].plot(history.history['val_loss'], label="test error")
     axes[1].set_xlabel('Epoch')
@@ -149,9 +150,9 @@ def plot_history(history):
     plt.show()
 
 
-# splits the processed data into train and validation sets and adds noise
+# Splits the processed data into train and validation sets and adds noise
 def split_data(data):
-    # split remaining dataframe into training and testing sets with an 80-20 split
+    # split dataframe into training and testing sets with an 80-20 split
     split_index = int(0.2 * len(data))
 
     x_train = data.iloc[split_index:len(data):1, :]
@@ -164,12 +165,11 @@ def split_data(data):
     x_validationfinal = x_validation.drop(columns=['annotation'])
     y_validation = y_validation.loc[:, ['annotation']]
 
-    # sdding noise to the training input with a standard deviation of 0.05
+    # adding noise to the training input with a standard deviation of 0.05
     mu, sigma = 0, 0.05
     noise = np.random.normal(mu, sigma, x_trainfinal.shape)
     x_trainfinal += noise
     x_trainfinal = normalize_dataframe(x_trainfinal)
-
 
     # convert labels to categorical data
     y_trainfinal = tf.keras.utils.to_categorical(y_train, 20)
@@ -178,7 +178,7 @@ def split_data(data):
     return x_trainfinal, y_trainfinal, x_validationfinal, y_validationfinal
 
 
-# builds the model with given hyperparameters
+# Builds the model with given hyperparameters
 def build_model(hp):
     # initialize model
     model = tf.keras.Sequential()
@@ -188,7 +188,7 @@ def build_model(hp):
     hp_units2 = hp.Int('units2', min_value=32, max_value=512, step=32)
     hp_reg_lr1 = hp.Choice('reg_learning_rate1', [1e-2, 1e-3, 1e-4])
     hp_reg_lr2 = hp.Choice('reg_learning_rate2', [1e-2, 1e-3, 1e-4])
-    hp_opt_lr = hp.Choice('opt_learning_rate', [1e-4, 1e-5])
+    hp_opt_lr = hp.Choice('opt_learning_rate', [1e-4, 1e-5, 1e-6])
     hp_drop_rate = hp.Choice('drop_rate', [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5])
 
     # define model architecture
@@ -202,8 +202,8 @@ def build_model(hp):
 
     model.add(tf.keras.layers.Dense(20, activation='softmax'))
 
-    # initialize the adam optimizer
-    optimizer = tf.keras.optimizers.Adam(1e-4)
+    # initialize the optimizer
+    optimizer = tf.keras.optimizers.Adam(hp_opt_lr)
 
     # model compilation
     model.compile(
@@ -215,7 +215,7 @@ def build_model(hp):
     return model
 
 
-# tune the hyperparameters to get the best model
+# Tune the hyperparameters to get the best model
 def tune_model(x_train, y_train, x_validation, y_validation):
     tuner = kt.Hyperband(build_model,
                          objective='val_accuracy',
@@ -250,7 +250,7 @@ def tune_model(x_train, y_train, x_validation, y_validation):
     return model
 
 
-# train the dataset on the best model
+# Train the dataset on the best model
 def train_model(model, x_trainfbest, y_trainfbest, x_validationfbest, y_validationfbest):
     # initialize model callback to save best model
     checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
